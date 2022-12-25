@@ -20,8 +20,7 @@ HOP_SIZE = 5
 NUM_MFCCS = 13
 
 NUM_SPEAKERS = 3
-NUM_FILES = 20
-DRIVES = ['./sam', './holly', './matt']
+DRIVES = ['./files/sam/', './files/sal', './files/hrh/']
 
 # Audio callback
 p = pyaudio.PyAudio()
@@ -70,16 +69,12 @@ def callback(in_data, frame_count, time_info, flag):
 
 def main(**kwargs):
     # Define training drives
-    # thatcher_drive = "16000_pcm_speeches/Magaret_Tarcher/"
-    # mandela_drive = "16000_pcm_speeches/Nelson_Mandela/"
-    # netanyahu_drive = "16000_pcm_speeches/Benjamin_Netanyau/"
-
-    # drives = [thatcher_drive, mandela_drive, netanyahu_drive]
-    preprocessor = preprocess.Preprocessor(extractor, DRIVES, NUM_FILES,
-                                           NUM_SPEAKERS)
+    preprocessor = preprocess.Preprocessor(extractor, DRIVES, NUM_SPEAKERS,
+                                           RATE)
 
     # Load CSV file and extract features and classes
     df = pd.read_csv('./data.csv')
+    # df = preprocessor.process_audio_files()
     data = df.to_numpy()
 
     # Define feature matrix and class vector
@@ -87,13 +82,13 @@ def main(**kwargs):
     y = data[:, (NUM_MFCCS + 1)].astype(int)
 
     # Evaluate the performance of the model
-    # evaluation.evaluate(X, y)
+    evaluation.evaluate(X, y)
 
     # Normalize data
     normalizer = preprocessing.Normalizer().fit(X)
     X_norm = normalizer.transform(X)
 
-    # Train the classifier
+    # Train the classifier on the entire dataset
     neighbor = KNeighborsClassifier(n_neighbors=5)
     neighbor.fit(X_norm, y)
 

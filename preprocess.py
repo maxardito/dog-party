@@ -6,11 +6,11 @@ import pandas as pd
 
 class Preprocessor:
 
-    def __init__(self, extractor, drives, num_files, num_speakers):
+    def __init__(self, extractor, drives, num_speakers, sr):
         self.extractor = extractor
         self.drives = drives
-        self.num_files = num_files
         self.num_speakers = num_speakers
+        self.sr = sr
 
         self.data = np.empty((14, 0))
 
@@ -38,10 +38,13 @@ class Preprocessor:
     def process_audio_files(self):
 
         for i in range(self.num_speakers):
-            for j in range(self.num_files):
+            files = librosa.util.find_files(self.drives[i], ext=['wav'])
+            files = np.asarray(files)
+
+            for j in files:
                 print("File: ", j, ", Speaker: ", i)
-                signal, sr = librosa.load(self.drives[i] + str(j) + ".wav")
-                (pitch, mfccs) = self.extractor.extract_training_data(signal)
+                signal, sr = librosa.load(j, sr=self.sr)
+                (pitch, mfccs, size) = self.extractor.extract_features(signal)
 
                 speaker = np.ones(pitch.shape[0]) * i
 
@@ -50,5 +53,7 @@ class Preprocessor:
                                         columns=self.df.columns)
 
                 self.df = self.df.append(new_data, ignore_index=True)
+
+        csv_data = self.df.to_csv('data.csv', index=False)
 
         return self.df
