@@ -29,8 +29,8 @@ class FeatureExtractor:
             y=signal,
             win_length=windowLength,
             hop_length=hopLength,
-            fmin=librosa.note_to_hz('C1'),
-            fmax=librosa.note_to_hz('C4'))
+            fmin=librosa.note_to_hz('C2'),
+            fmax=librosa.note_to_hz('C7'))
         total_analysis_windows = f0.shape[0]
 
         voiced_flag = np.where(voiced_flag == True, 1, 0)

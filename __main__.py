@@ -13,7 +13,7 @@ import preprocess
 
 # Hyperparameters
 CHANNELS = 1
-BLOCK_SIZE = 1024
+BLOCK_SIZE = 2048
 RATE = 44100
 WINDOW_SIZE = 30
 HOP_SIZE = 5
@@ -32,12 +32,12 @@ final_data = np.ones((1, 14))
 # Define the feature extractor used for training and implementation
 extractor = feature_extractor.FeatureExtractor(WINDOW_SIZE, HOP_SIZE,
                                                NUM_MFCCS, RATE)
+
+
 """
 Audio callback function accesses the final_data global variable
 and extracts a new block of feature vectors for each audio I/O vector
 """
-
-
 def callback(in_data, frame_count, time_info, flag):
     # Access global variable
     global final_data
@@ -48,7 +48,8 @@ def callback(in_data, frame_count, time_info, flag):
     # Extract the features
     (pitch, mfccs, size) = extractor.extract_features(data)
 
-    # Throw away data below a certain amplitude threshold
+    # Throw away data below a certain amplitude threshold and
+    # above a certain zerox threshold
     volume_norm = np.linalg.norm(data)
 
     if (size == 0 or volume_norm < 0.4):
@@ -82,7 +83,7 @@ def main(**kwargs):
     y = data[:, (NUM_MFCCS + 1)].astype(int)
 
     # Evaluate the performance of the model
-    evaluation.evaluate(X, y)
+    # evaluation.evaluate(X, y)
 
     # Normalize data
     normalizer = preprocessing.Normalizer().fit(X)
