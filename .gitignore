@@ -1,5 +1,7 @@
 16000_pcm_speeches
 files
+__pycache__
+.vim
+
 speakers.csv
 data.csv
-__pycache__
