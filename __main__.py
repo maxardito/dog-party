@@ -19,8 +19,8 @@ WINDOW_SIZE = 30
 HOP_SIZE = 5
 NUM_MFCCS = 13
 
-NUM_SPEAKERS = 3
-DRIVES = ['./files/sam/', './files/sal', './files/hrh/']
+NUM_SPEAKERS = 2
+DRIVES = ['./files/sam/', './files/david/']
 
 # Audio callback
 p = pyaudio.PyAudio()
@@ -45,25 +45,27 @@ def callback(in_data, frame_count, time_info, flag):
     # Convert input data to float vector and normalize
     data = np.frombuffer(in_data, dtype=np.float32)
 
-    # Extract the features
-    (pitch, mfccs, size) = extractor.extract_features(data)
-
     # Throw away data below a certain amplitude threshold and
     # above a certain zerox threshold
     volume_norm = np.linalg.norm(data)
 
-    if (size == 0 or volume_norm < 0.4):
+    zerox_norm = np.linalg.norm(librosa.feature.zero_crossing_rate(data))
+
+    if (volume_norm < 0.8 or zerox_norm > 0.2):
         final_data = "Unvoiced"
     else:
-        # Assign first feature to f0 and remaining features to mfccs
-        new_data = np.ones((size, 14))
+        # Extract the features
+        (pitch, mfccs, size) = extractor.extract_features(data)
+        if(size != 0):
+            # Assign first feature to f0 and remaining features to mfccs
+            new_data = np.ones((size, 14))
 
-        new_data[:, 0] = pitch
+            new_data[:, 0] = pitch
 
-        for i in range(13):
-            new_data[:, (i + 1)] = mfccs[i, :]
+            for i in range(13):
+                new_data[:, (i + 1)] = mfccs[i, :]
 
-        final_data = new_data
+            final_data = new_data
 
     return (data, pyaudio.paContinue)
 
@@ -106,22 +108,29 @@ def main(**kwargs):
 
     ###### Audio Callback ######
     while stream.is_active():
-        time.sleep(0.01)
+        time.sleep(1)
         # Filter out NaN data
-        if (isinstance(final_data, str)):
-            # print(final_data)
-            continue
-        else:
+        # t_end = time.time() + 1
+        results = np.array([3])
+        # while time.time() < t_end:
+        if (not isinstance(final_data, str)):
             # Normalize and predict new vector of windows
             X_new = normalizer.fit_transform(final_data)
-            result = neighbor.predict(X_new)
+            results = neighbor.predict(X_new)
 
-            # Print the most frequently recurring speaker estimate
-            values, counts = np.unique(result, return_counts=True)
-            print(values[counts.argmax()])
+                # Print the most frequently recurring speaker estimate
+        values, counts = np.unique(results, return_counts=True)
+        speaker = values[counts.argmax()]
 
-            # Stop the stream
-            # stream.stop_stream()
+        if(speaker == 3):
+            print("None")
+        elif(speaker == 0):
+            print("Sam")
+        elif(speaker == 1):
+            print("David")
+
+                # Stop the stream
+                # stream.stop_stream()
     stream.close()
 
     p.terminate()
