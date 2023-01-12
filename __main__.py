@@ -7,156 +7,124 @@ import librosa
 import numpy as np
 import pyaudio
 import time
+import feature_extractor
+import evaluation
+import preprocess
 
-CHANNELS = 2
-CHUNK = 1024
-RATE = 44100 
+# Hyperparameters
+CHANNELS = 1
+BLOCK_SIZE = 2048
+RATE = 44100
+WINDOW_SIZE = 30
+HOP_SIZE = 5
+NUM_MFCCS = 13
 
-final_data = np.ones((1, 14))
+NUM_SPEAKERS = 2
+DRIVES = ['./files/sam/', './files/david/']
+
+# Audio callback
 p = pyaudio.PyAudio()
 
-min_max_training = np.zeros((2, 14))
+# Global variable for features to be sent from
+# audio callback to KNN function
+final_data = np.ones((1, 14))
+
+# Define the feature extractor used for training and implementation
+extractor = feature_extractor.FeatureExtractor(WINDOW_SIZE, HOP_SIZE,
+                                               NUM_MFCCS, RATE)
+"""
+Audio callback function accesses the final_data global variable
+and extracts a new block of feature vectors for each audio I/O vector
+"""
+
 
 def callback(in_data, frame_count, time_info, flag):
+    # Access global variable
     global final_data
 
+    # Convert input data to float vector and normalize
     data = np.frombuffer(in_data, dtype=np.float32)
+
+    # Throw away data below a certain amplitude threshold and
+    # above a certain zerox threshold
     volume_norm = np.linalg.norm(data)
 
-    # Extract using librosa
-    (pitch, mfccs, size) = extract_training_data(data, 44100, 30, 5, 13)
+    zerox_norm = np.linalg.norm(librosa.feature.zero_crossing_rate(data))
 
-    if(size == 0 or volume_norm < 0.4):
-      final_data = "Unvoiced" 
-    else: 
-      new_data = np.ones((size, 14))
-
-      new_data[:, 0] = pitch
-
-      for i in range(13):
-        new_data[:, (i + 1)] = mfccs[i, :]
-
-      # Clipping
-      # for i in range(14):
-      #   if(np.min(new_data[:, i]) < min_max_training[0, i] or np.max(new_data[:, i]) < min_max_training[1, i]):
-      #     final_data = "Unvoiced"
- 
-      # Extra zerox
-      zcr = librosa.feature.zero_crossing_rate(y=data, frame_length=2048,hop_length=5)
-      if(np.average(zcr) < 0.02):
+    if (volume_norm < 0.8 or zerox_norm > 0.2):
         final_data = "Unvoiced"
+    else:
+        # Extract the features
+        (pitch, mfccs, size) = extractor.extract_features(data)
+        if (size != 0):
+            # Assign first feature to f0 and remaining features to mfccs
+            new_data = np.ones((size, 14))
 
-      final_data = new_data
+            new_data[:, 0] = pitch
+
+            for i in range(13):
+                new_data[:, (i + 1)] = mfccs[i, :]
+
+            final_data = new_data
 
     return (data, pyaudio.paContinue)
 
-def extract_training_data(signal, sr, windowLength, hopLength, num_coeff):
-  windowLength = int((windowLength / 1000) * sr)
-  hopLength = int((hopLength / 1000) * sr)
- 
-  f0, voiced_flag, voiced_probs = librosa.pyin(y=signal, win_length=windowLength, hop_length=hopLength, fmin=librosa.note_to_hz('C1'), fmax=librosa.note_to_hz('C4'))
-  total_analysis_windows = f0.shape[0]
-  
-  voiced_flag = np.where(voiced_flag == True, 1, 0)
-  
-  f0 = f0 * voiced_flag
-  
-  f0_voiced = np.empty(0)
-  
-  for i in range(total_analysis_windows):
-    if(voiced_flag[i] == 1):
-      f0_voiced = np.append(f0_voiced, f0[i]) 
-
-  mfccs = librosa.feature.mfcc(y=signal, n_mfcc=num_coeff, win_length=windowLength, hop_length=hopLength, sr=sr, n_fft=windowLength)
-  
-  mfccs = mfccs * voiced_flag
-  
-  # NOTE: do I neeed the second one?
-  mfccs_voiced = np.empty((13, np.sum(voiced_flag)))
-  mfccs_voiced = np.zeros((13, np.sum(voiced_flag)))
-
-  window_counter = 0
-
-  for i in range(total_analysis_windows):
-    if(voiced_flag[i] == 1):
-      mfccs_voiced[:, window_counter] = mfccs[:, i] 
-      window_counter += 1
-
-  
-  return (f0_voiced, mfccs_voiced, window_counter)
-
-
-def evaluate(X, y):
-    # Train / Test split
-    X_train, X_test, y_train, y_test = train_test_split(X,
-                                                        y,
-                                                        random_state=7,
-                                                        test_size=0.01,
-                                                        shuffle=True)
-
-    normalizer = preprocessing.Normalizer().fit(X_train)
-
-    X_norm_train = normalizer.transform(X_train)
-
-    neighbor = KNeighborsClassifier(n_neighbors=5)
-
-    neighbor.fit(X_norm_train, y_train)
-
-    X_norm_test = normalizer.transform(X_test)
-    pred = neighbor.predict(X_norm_test)
-    print(pred)
-
-    accuracy = neighbor.score(X_test, y_test, sample_weight=None)
-    print("Accuracy: ", accuracy * 100, "%")
-
 
 def main(**kwargs):
-    num_features = 14
+    # Define training drives
+    preprocessor = preprocess.Preprocessor(extractor, DRIVES, NUM_SPEAKERS,
+                                           RATE)
 
     # Load CSV file and extract features and classes
-    df = pd.read_csv('./speakers.csv')
+    df = pd.read_csv('./data.csv')
+    # df = preprocessor.process_audio_files()
     data = df.to_numpy()
-    X = data[:, :num_features]
-    y = data[:, num_features].astype(int)
 
-    # evaluate(X, y)
+    # Define feature matrix and class vector
+    X = data[:, :(NUM_MFCCS + 1)]
+    y = data[:, (NUM_MFCCS + 1)].astype(int)
+
+    # Evaluate the performance of the model
+    # evaluation.evaluate(X, y)
 
     # Normalize data
     normalizer = preprocessing.Normalizer().fit(X)
-
     X_norm = normalizer.transform(X)
 
+    # Train the classifier on the entire dataset
     neighbor = KNeighborsClassifier(n_neighbors=5)
-
     neighbor.fit(X_norm, y)
 
-    for i in range(14):
-      min_max_training[0, i] = np.min(X[i, :])
-      min_max_training[1, i] = np.max(X[i, :])
-
+    # Start the audio callback
     stream = p.open(format=pyaudio.paFloat32,
-                channels=CHANNELS,
-                rate=RATE,
-                output=False,
-                input=True,
-                frames_per_buffer = CHUNK,
-                stream_callback=callback)
+                    channels=CHANNELS,
+                    rate=RATE,
+                    output=False,
+                    input=True,
+                    frames_per_buffer=BLOCK_SIZE,
+                    stream_callback=callback)
 
     stream.start_stream()
 
+    ###### Audio Callback ######
     while stream.is_active():
-        time.sleep(0.01)
-        if(isinstance(final_data, str)):
-          # print(final_data)
-          continue
-        else:
-          X_new = normalizer.fit_transform(final_data)
-          result = neighbor.predict(X_new)
-          values, counts = np.unique(result, return_counts=True)
+        time.sleep(1)
+        # Filter out NaN data
+        # t_end = time.time() + 1
+        results = np.array([3])
+        # while time.time() < t_end:
+        if (not isinstance(final_data, str)):
+            # Normalize and predict new vector of windows
+            X_new = normalizer.fit_transform(final_data)
+            results = neighbor.predict(X_new)
 
-          print(result)
-          # print(values[counts.argmax()])
-          # stream.stop_stream()
+            # Print the most frequently recurring speaker estimate
+        values, counts = np.unique(results, return_counts=True)
+        speaker = values[counts.argmax()]
+        print(speaker)
+
+        # Stop the stream
+        # stream.stop_stream()
     stream.close()
 
     p.terminate()
