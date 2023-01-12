@@ -32,12 +32,12 @@ final_data = np.ones((1, 14))
 # Define the feature extractor used for training and implementation
 extractor = feature_extractor.FeatureExtractor(WINDOW_SIZE, HOP_SIZE,
                                                NUM_MFCCS, RATE)
-
-
 """
 Audio callback function accesses the final_data global variable
 and extracts a new block of feature vectors for each audio I/O vector
 """
+
+
 def callback(in_data, frame_count, time_info, flag):
     # Access global variable
     global final_data
@@ -56,7 +56,7 @@ def callback(in_data, frame_count, time_info, flag):
     else:
         # Extract the features
         (pitch, mfccs, size) = extractor.extract_features(data)
-        if(size != 0):
+        if (size != 0):
             # Assign first feature to f0 and remaining features to mfccs
             new_data = np.ones((size, 14))
 
@@ -118,19 +118,13 @@ def main(**kwargs):
             X_new = normalizer.fit_transform(final_data)
             results = neighbor.predict(X_new)
 
-                # Print the most frequently recurring speaker estimate
+            # Print the most frequently recurring speaker estimate
         values, counts = np.unique(results, return_counts=True)
         speaker = values[counts.argmax()]
+        print(speaker)
 
-        if(speaker == 3):
-            print("None")
-        elif(speaker == 0):
-            print("Sam")
-        elif(speaker == 1):
-            print("David")
-
-                # Stop the stream
-                # stream.stop_stream()
+        # Stop the stream
+        # stream.stop_stream()
     stream.close()
 
     p.terminate()
