@@ -3,6 +3,10 @@
 Real-time Speaker identification model using SkLearn and KNN. Potentially could be used in
 tandem with RNBO. Implementation of [this MATLAB article](https://www.mathworks.com/help/audio/ug/speaker-identification-using-pitch-and-mfcc.html)
 
+## Installation
+
+First, install all the packages with `pip install -r requirements.txt`
+
 ## Preparing The Dataset
 
 Audio training data for each speaker should be placed in the `files` folder as such...
